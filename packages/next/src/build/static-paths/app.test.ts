@@ -6,11 +6,12 @@ import {
   calculateFallbackMode,
   filterUniqueParams,
   generateRouteStaticParams,
-  resolveParallelRouteParams,
+  resolveRouteParamsFromTree,
 } from './app'
-import type { PrerenderedRoute, FallbackRouteParam } from './types'
+import type { FallbackRouteParam, PrerenderedRoute } from './types'
 import type { WorkStore } from '../../server/app-render/work-async-storage.external'
 import type { AppSegment } from '../segment-config/app/app-segments'
+import { parseAppRoute } from '../../shared/lib/router/routes/app'
 import type { DynamicParamTypes } from '../../shared/lib/app-router-types'
 
 describe('assignErrorIfEmpty', () => {
@@ -42,7 +43,6 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'id',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -76,12 +76,10 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'id',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
           {
             paramName: 'name',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -96,7 +94,6 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'name',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -129,7 +126,6 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'name',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -160,7 +156,6 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'name',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -175,12 +170,10 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'name',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
           {
             paramName: 'extra',
             paramType: 'catchall',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -225,7 +218,6 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'slug',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -269,12 +261,10 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'id',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
           {
             paramName: 'slug',
             paramType: 'catchall',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -289,7 +279,6 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'slug',
             paramType: 'catchall',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -327,17 +316,14 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'category',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
           {
             paramName: 'subcategory',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
           {
             paramName: 'item',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -352,12 +338,10 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'subcategory',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
           {
             paramName: 'item',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -372,7 +356,6 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'item',
             paramType: 'dynamic',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -417,7 +400,6 @@ describe('assignErrorIfEmpty', () => {
           {
             paramName: 'segments',
             paramType: 'catchall',
-            isParallelRouteParam: false,
           },
         ],
         fallbackMode: FallbackMode.NOT_FOUND,
@@ -1308,7 +1290,7 @@ describe('calculateFallbackMode', () => {
   })
 })
 
-describe('resolveParallelRouteParams', () => {
+describe('resolveRouteParamsFromTree', () => {
   // Helper to create LoaderTree structures for testing
   type TestLoaderTree = [
     segment: string,
@@ -1327,10 +1309,9 @@ describe('resolveParallelRouteParams', () => {
 
   function createFallbackParam(
     paramName: string,
-    isParallelRouteParam: boolean,
     paramType: DynamicParamTypes = 'dynamic'
   ): FallbackRouteParam {
-    return { paramName, paramType, isParallelRouteParam }
+    return { paramName, paramType }
   }
 
   describe('direct match case', () => {
@@ -1340,15 +1321,10 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[existingParam]'),
       })
       const params: Params = { existingParam: 'value' }
-      const pathname = '/some/path'
+      const route = parseAppRoute('/some/path', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.existingParam).toBe('value')
       expect(fallbackRouteParams).toHaveLength(0)
@@ -1361,15 +1337,10 @@ describe('resolveParallelRouteParams', () => {
         modal: createLoaderTree('[...param2]'),
       })
       const params: Params = { param1: 'value1', param2: ['a', 'b'] }
-      const pathname = '/some/path'
+      const route = parseAppRoute('/some/path', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.param1).toBe('value1')
       expect(params.param2).toEqual(['a', 'b'])
@@ -1385,15 +1356,10 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[dynamicParam]'),
       })
       const params: Params = {}
-      const pathname = '/some/path'
+      const route = parseAppRoute('/some/path', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.dynamicParam).toBe('some')
       expect(fallbackRouteParams).toHaveLength(0)
@@ -1407,15 +1373,10 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[category]'),
       })
       const params: Params = {}
-      const pathname = '/photo/123'
+      const route = parseAppRoute('/photo/123', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Both should extract the first segment 'photo'
       expect(params.id).toBe('photo')
@@ -1429,15 +1390,10 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[category]'),
       })
       const params: Params = {}
-      const pathname = '/tech'
+      const route = parseAppRoute('/tech', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.category).toBe('tech')
       expect(fallbackRouteParams).toHaveLength(0)
@@ -1453,15 +1409,10 @@ describe('resolveParallelRouteParams', () => {
         })
       )
       const params: Params = {}
-      const pathname = '/blog/tech'
+      const route = parseAppRoute('/blog/tech', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.category).toBe('tech')
       expect(fallbackRouteParams).toHaveLength(0)
@@ -1475,17 +1426,12 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[category]'),
       })
       const params: Params = {}
-      const pathname = '/tech'
+      const route = parseAppRoute('/tech', true)
       const fallbackRouteParams: FallbackRouteParam[] = [
-        createFallbackParam('slug', false), // Non-parallel fallback param at different depth
+        createFallbackParam('slug'),
       ]
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should extract 'tech' because pathSegments[0] is known, regardless of slug
       expect(params.category).toBe('tech')
@@ -1506,22 +1452,16 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = {}
-      const pathname = '/blog' // Only 1 segment, but dynamic param is at depth 2
+      const route = parseAppRoute('/blog', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.category).toBeUndefined()
       expect(fallbackRouteParams).toHaveLength(1)
       expect(fallbackRouteParams[0]).toEqual({
         paramName: 'category',
         paramType: 'dynamic',
-        isParallelRouteParam: true,
       })
     })
 
@@ -1535,15 +1475,10 @@ describe('resolveParallelRouteParams', () => {
         })
       )
       const params: Params = { lang: 'en' }
-      const pathname = '/en/tech'
+      const route = parseAppRoute('/en/tech', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.category).toBe('tech')
       expect(fallbackRouteParams).toHaveLength(0)
@@ -1566,18 +1501,12 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = { lang: 'en' }
-      // Pathname with placeholder at depth 2: /en/products/[category]
-      const pathname = '/en/products/[category]'
+      const route = parseAppRoute('/en/products/[category]', true)
       const fallbackRouteParams: FallbackRouteParam[] = [
-        createFallbackParam('category', false), // category at depth 2 is unknown
+        createFallbackParam('category'),
       ]
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should extract 'products' at depth 1, even though category at depth 2 is unknown
       expect(params.filter).toBe('products')
@@ -1604,18 +1533,12 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = { lang: 'en' }
-      // Pathname with placeholder at depth 2: /en/products/[category]
-      const pathname = '/en/products/[category]'
+      const route = parseAppRoute('/en/products/[category]', true)
       const fallbackRouteParams: FallbackRouteParam[] = [
-        createFallbackParam('category', false), // category at depth 2 is unknown
+        createFallbackParam('category'),
       ]
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should NOT extract because pathSegments[2] = '[category]' is a placeholder
       expect(params.filter).toBeUndefined()
@@ -1623,65 +1546,6 @@ describe('resolveParallelRouteParams', () => {
       expect(fallbackRouteParams[1]).toEqual({
         paramName: 'filter',
         paramType: 'dynamic',
-        isParallelRouteParam: true,
-      })
-    })
-  })
-
-  describe('catchall with non-parallel fallback params', () => {
-    it('should add to fallbackRouteParams when non-parallel fallback params exist', () => {
-      // Tree: / -> @sidebar/[...catchallParam]
-      const loaderTree = createLoaderTree('', {
-        sidebar: createLoaderTree('[...catchallParam]'),
-      })
-      const params: Params = {}
-      const pathname = '/some/path/segments'
-      const fallbackRouteParams: FallbackRouteParam[] = [
-        createFallbackParam('regularParam', false), // Non-parallel fallback param
-      ]
-
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
-
-      expect(params.catchallParam).toBeUndefined()
-      expect(fallbackRouteParams).toHaveLength(2)
-      expect(fallbackRouteParams[1]).toEqual({
-        paramName: 'catchallParam',
-        paramType: 'catchall',
-        isParallelRouteParam: true,
-      })
-    })
-  })
-
-  describe('optional-catchall with non-parallel fallback params', () => {
-    it('should add to fallbackRouteParams when non-parallel fallback params exist', () => {
-      // Tree: / -> @sidebar/[[...optionalCatchall]]
-      const loaderTree = createLoaderTree('', {
-        sidebar: createLoaderTree('[[...optionalCatchall]]'),
-      })
-      const params: Params = {}
-      const pathname = '/some/path'
-      const fallbackRouteParams: FallbackRouteParam[] = [
-        createFallbackParam('regularParam', false), // Non-parallel fallback param
-      ]
-
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
-
-      expect(params.optionalCatchall).toBeUndefined()
-      expect(fallbackRouteParams).toHaveLength(2)
-      expect(fallbackRouteParams[1]).toEqual({
-        paramName: 'optionalCatchall',
-        paramType: 'optional-catchall',
-        isParallelRouteParam: true,
       })
     })
   })
@@ -1698,15 +1562,10 @@ describe('resolveParallelRouteParams', () => {
         })
       )
       const params: Params = {}
-      const pathname = '/blog/2023/posts/my-article'
+      const route = parseAppRoute('/blog/2023/posts/my-article', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should get segments from depth 1 onwards
       expect(params.catchallParam).toEqual(['2023', 'posts', 'my-article'])
@@ -1719,15 +1578,10 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[...catchallParam]'),
       })
       const params: Params = {}
-      const pathname = '/blog/2023/posts'
+      const route = parseAppRoute('/blog/2023/posts', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should get all segments
       expect(params.catchallParam).toEqual(['blog', '2023', 'posts'])
@@ -1748,15 +1602,10 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = { category: 'electronics' }
-      const pathname = '/products/electronics/phones/iphone'
+      const route = parseAppRoute('/products/electronics/phones/iphone', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should get segments from depth 2 onwards (after /products/[category])
       expect(params.filterPath).toEqual(['phones', 'iphone'])
@@ -1769,15 +1618,10 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[...catchallParam]'),
       })
       const params: Params = {}
-      const pathname = '/single'
+      const route = parseAppRoute('/single', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.catchallParam).toEqual(['single'])
       expect(fallbackRouteParams).toHaveLength(0)
@@ -1796,15 +1640,10 @@ describe('resolveParallelRouteParams', () => {
         })
       )
       const params: Params = {}
-      const pathname = '/blog/post'
+      const route = parseAppRoute('/blog/post', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should get all segments since route group doesn't increment depth
       expect(params.catchallParam).toEqual(['blog', 'post'])
@@ -1829,15 +1668,10 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = {}
-      const pathname = '/blog/2023/posts'
+      const route = parseAppRoute('/blog/2023/posts', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should get segments from depth 1 (after /blog), route groups don't count
       expect(params.path).toEqual(['2023', 'posts'])
@@ -1852,15 +1686,10 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[[...optionalCatchall]]'),
       })
       const params: Params = {}
-      const pathname = '/'
+      const route = parseAppRoute('/', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.optionalCatchall).toEqual([])
       expect(fallbackRouteParams).toHaveLength(0)
@@ -1876,15 +1705,10 @@ describe('resolveParallelRouteParams', () => {
         })
       )
       const params: Params = {}
-      const pathname = '/blog'
+      const route = parseAppRoute('/blog', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.optionalPath).toEqual([])
       expect(fallbackRouteParams).toHaveLength(0)
@@ -1898,15 +1722,10 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[[...optionalCatchall]]'),
       })
       const params: Params = {}
-      const pathname = '/api/v1/users'
+      const route = parseAppRoute('/api/v1/users', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.optionalCatchall).toEqual(['api', 'v1', 'users'])
       expect(fallbackRouteParams).toHaveLength(0)
@@ -1921,15 +1740,10 @@ describe('resolveParallelRouteParams', () => {
         modal: createLoaderTree('[...path]'),
       })
       const params: Params = {}
-      const pathname = '/photos/album/2023'
+      const route = parseAppRoute('/photos/album/2023', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should get all segments
       expect(params.path).toEqual(['photos', 'album', '2023'])
@@ -1944,14 +1758,14 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[...catchallParam]'),
       })
       const params: Params = {}
-      const pathname = '/'
+      const route = parseAppRoute('/', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
       expect(() =>
-        resolveParallelRouteParams(
+        resolveRouteParamsFromTree(
           loaderTree,
           params,
-          pathname,
+          route,
           fallbackRouteParams
         )
       ).toThrow(/Unexpected empty path segments/)
@@ -1972,14 +1786,14 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = {}
-      const pathname = '/blog'
+      const route = parseAppRoute('/blog', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
       expect(() =>
-        resolveParallelRouteParams(
+        resolveRouteParamsFromTree(
           loaderTree,
           params,
-          pathname,
+          route,
           fallbackRouteParams
         )
       ).toThrow(/Unexpected empty path segments/)
@@ -1994,15 +1808,10 @@ describe('resolveParallelRouteParams', () => {
         modal: createLoaderTree('[[...modalPath]]'),
       })
       const params: Params = {}
-      const pathname = '/products/electronics'
+      const route = parseAppRoute('/products/electronics', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.sidebarPath).toEqual(['products', 'electronics'])
       expect(params.modalPath).toEqual(['products', 'electronics'])
@@ -2019,15 +1828,10 @@ describe('resolveParallelRouteParams', () => {
         })
       )
       const params: Params = { lang: 'en' }
-      const pathname = '/en/blog/post'
+      const route = parseAppRoute('/en/blog/post', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should resolve [lang] in path segments to 'en'
       expect(params.path).toEqual(['blog', 'post'])
@@ -2044,15 +1848,10 @@ describe('resolveParallelRouteParams', () => {
         createLoaderTree('blog')
       )
       const params: Params = {}
-      const pathname = '/blog/post'
+      const route = parseAppRoute('/blog/post', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should only process @sidebar, not children
       expect(params.path).toEqual(['blog', 'post'])
@@ -2072,15 +1871,10 @@ describe('resolveParallelRouteParams', () => {
         })
       )
       const params: Params = {}
-      const pathname = '/photo/123/details'
+      const route = parseAppRoute('/photo/123/details', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should get segments from depth 1 onwards (after /(.)photo)
       expect(params.segments).toEqual(['123', 'details'])
@@ -2101,15 +1895,10 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = {}
-      const pathname = '/gallery/photo/123'
+      const route = parseAppRoute('/gallery/photo/123', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // (..)photo is at depth 1, @modal/[id] should extract from depth 2
       expect(params.id).toBe('123')
@@ -2134,15 +1923,10 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = {}
-      const pathname = '/app/gallery/photo/2023/album'
+      const route = parseAppRoute('/app/gallery/photo/2023/album', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // (...)photo is at depth 2, @modal/[...path] should extract from depth 3
       expect(params.path).toEqual(['2023', 'album'])
@@ -2167,15 +1951,10 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = {}
-      const pathname = '/a/b/photo/nature'
+      const route = parseAppRoute('/a/b/photo/nature', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // (..)(..)photo is at depth 2, @modal/[category] should extract from depth 3
       expect(params.category).toBe('nature')
@@ -2201,15 +1980,15 @@ describe('resolveParallelRouteParams', () => {
         })
       )
 
-      const pathname = '/photo/123'
+      const route = parseAppRoute('/photo/123', true)
 
       // Route group - should NOT increment depth
       const routeGroupParams: Params = {}
       const routeGroupFallback: FallbackRouteParam[] = []
-      resolveParallelRouteParams(
+      resolveRouteParamsFromTree(
         routeGroupTree,
         routeGroupParams,
-        pathname,
+        route,
         routeGroupFallback
       )
       // Gets all segments because route group doesn't increment depth
@@ -2218,10 +1997,10 @@ describe('resolveParallelRouteParams', () => {
       // Interception route - SHOULD increment depth
       const interceptionParams: Params = {}
       const interceptionFallback: FallbackRouteParam[] = []
-      resolveParallelRouteParams(
+      resolveRouteParamsFromTree(
         interceptionTree,
         interceptionParams,
-        pathname,
+        route,
         interceptionFallback
       )
       // Gets segments from depth 1 because (.)photo increments depth
@@ -2236,22 +2015,16 @@ describe('resolveParallelRouteParams', () => {
         modal: createLoaderTree('[id]'),
       })
       const params: Params = {}
-      const pathname = '/'
+      const route = parseAppRoute('/', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.id).toBeUndefined()
       expect(fallbackRouteParams).toHaveLength(1)
       expect(fallbackRouteParams[0]).toEqual({
         paramName: 'id',
         paramType: 'dynamic',
-        isParallelRouteParam: true,
       })
     })
 
@@ -2262,15 +2035,10 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[filter]'),
       })
       const params: Params = {}
-      const pathname = '/'
+      const route = parseAppRoute('/', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       expect(params.category).toBeUndefined()
       expect(params.filter).toBeUndefined()
@@ -2278,12 +2046,10 @@ describe('resolveParallelRouteParams', () => {
       expect(fallbackRouteParams).toContainEqual({
         paramName: 'category',
         paramType: 'dynamic',
-        isParallelRouteParam: true,
       })
       expect(fallbackRouteParams).toContainEqual({
         paramName: 'filter',
         paramType: 'dynamic',
-        isParallelRouteParam: true,
       })
     })
 
@@ -2297,15 +2063,10 @@ describe('resolveParallelRouteParams', () => {
         })
       )
       const params: Params = {}
-      const pathname = '/blog'
+      const route = parseAppRoute('/blog', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // No segment at depth 1, should mark as fallback
       expect(params.id).toBeUndefined()
@@ -2313,7 +2074,6 @@ describe('resolveParallelRouteParams', () => {
       expect(fallbackRouteParams[0]).toEqual({
         paramName: 'id',
         paramType: 'dynamic',
-        isParallelRouteParam: true,
       })
     })
   })
@@ -2326,17 +2086,12 @@ describe('resolveParallelRouteParams', () => {
         sidebar: createLoaderTree('[...path]'),
       })
       const params: Params = {}
-      const pathname = '/blog/[category]/tech'
+      const route = parseAppRoute('/blog/[category]/tech', true)
       const fallbackRouteParams: FallbackRouteParam[] = [
-        createFallbackParam('category', false), // category is unknown
+        createFallbackParam('category'),
       ]
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should mark as fallback because there's a non-parallel fallback param
       expect(params.path).toBeUndefined()
@@ -2344,7 +2099,6 @@ describe('resolveParallelRouteParams', () => {
       expect(fallbackRouteParams[1]).toEqual({
         paramName: 'path',
         paramType: 'catchall',
-        isParallelRouteParam: true,
       })
     })
 
@@ -2359,15 +2113,10 @@ describe('resolveParallelRouteParams', () => {
         })
       )
       const params: Params = { lang: 'en' }
-      const pathname = '/en/blog/[category]'
+      const route = parseAppRoute('/en/blog/[category]', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should mark path as fallback because pathname contains unknown [category] placeholder
       expect(params.path).toBeUndefined()
@@ -2375,7 +2124,6 @@ describe('resolveParallelRouteParams', () => {
       expect(fallbackRouteParams[0]).toEqual({
         paramName: 'path',
         paramType: 'catchall',
-        isParallelRouteParam: true,
       })
     })
 
@@ -2393,15 +2141,13 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = { category: 'electronics' }
-      const pathname = '/products/electronics/brand/apple/price/high'
+      const route = parseAppRoute(
+        '/products/electronics/brand/apple/price/high',
+        true
+      )
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Should get remaining path after resolving category
       expect(params.filterPath).toEqual(['brand', 'apple', 'price', 'high'])
@@ -2425,15 +2171,10 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = {}
-      const pathname = '/gallery/photo/123'
+      const route = parseAppRoute('/gallery/photo/123', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Both should extract from depth 2 (after /gallery/(.)photo)
       expect(params.id).toBe('123')
@@ -2459,15 +2200,10 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = {}
-      const pathname = '/gallery/photo/2023/album'
+      const route = parseAppRoute('/gallery/photo/2023/album', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // Route group doesn't increment, gallery does, (.)photo does
       // So depth is 2, extract from depth 2 onwards
@@ -2487,15 +2223,10 @@ describe('resolveParallelRouteParams', () => {
         })
       )
       const params: Params = { lang: 'en' }
-      const pathname = '/en/tech/react/nextjs'
+      const route = parseAppRoute('/en/tech/react/nextjs', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // All should extract from depth 1 onwards
       expect(params.category).toBe('tech')
@@ -2522,15 +2253,10 @@ describe('resolveParallelRouteParams', () => {
         )
       )
       const params: Params = {}
-      const pathname = '/app/modal/photo/image-123'
+      const route = parseAppRoute('/app/modal/photo/image-123', true)
       const fallbackRouteParams: FallbackRouteParam[] = []
 
-      resolveParallelRouteParams(
-        loaderTree,
-        params,
-        pathname,
-        fallbackRouteParams
-      )
+      resolveRouteParamsFromTree(loaderTree, params, route, fallbackRouteParams)
 
       // app (depth 1) + (.)modal (depth 2) + (.)photo (depth 3) -> extract at depth 3
       expect(params.id).toBe('image-123')
@@ -2538,41 +2264,3 @@ describe('resolveParallelRouteParams', () => {
     })
   })
 })
-
-/**
- * Test coverage note for dynamicParams validation in buildAppStaticPaths:
- *
- * The two-phase validation for segments with `dynamicParams: false` should be tested
- * in integration/e2e tests due to the complexity of mocking buildAppStaticPaths dependencies.
- *
- * Key scenarios to test:
- *
- * Phase 1 (Children route validation - lines 972-997):
- * - ✅ Should throw error when children route segment has dynamicParams: false
- *      but param is missing from generateStaticParams
- * - ✅ Should skip validation for parallel route segments (tested in Phase 2)
- *
- * Phase 2 (Parallel route validation - lines 1159-1201):
- * - ✅ Should throw error when parallel route segment has dynamicParams: false
- *      but param cannot be resolved from pathname
- * - ✅ Should throw error when parallel route segment has dynamicParams: false
- *      but param is marked as fallback (requires request-time resolution)
- * - ✅ Should succeed when parallel route param can be derived from pathname
- * - ✅ Should succeed when parallel route param is provided via generateStaticParams
- *
- * Example test structure for e2e:
- *
- * app/
- *   @modal/[category]/page.tsx  // dynamicParams: false, no generateStaticParams
- *   [slug]/page.tsx             // generateStaticParams: [{slug: 'post-1'}]
- *
- * Expected behavior:
- * - If @modal/[category] can derive category from pathname "/post-1": ✅ Success
- * - If @modal/[category] cannot derive category: ❌ Phase 2 error with pathname context
- *
- * app/
- *   [slug]/page.tsx  // dynamicParams: false, no generateStaticParams
- *
- * Expected behavior:
- * - ❌ Phase 1 error: param missing from generateStaticParams
- */
